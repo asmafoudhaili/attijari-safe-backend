@@ -1,5 +1,6 @@
 package com.example.backend.Controller;
 
+import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.util.JwtUtil;
@@ -41,7 +42,7 @@ public class AuthController {
             User user = new User();
             user.setUsername(request.getUsername());
             user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setRole("ADMIN");
+            user.setRole(Role.valueOf("ADMIN"));
 
             userRepository.save(user);
             return ResponseEntity.ok("User created successfully");
