@@ -1,55 +1,26 @@
-package com.example.backend.Controller;
+package com.example.backend.controller;
 
 import com.example.backend.entity.Log;
 import com.example.backend.entity.User;
 import com.example.backend.repository.LogRepository;
 import com.example.backend.repository.UserRepository;
-import com.example.backend.service.CodeSafetyService;
-import com.example.backend.service.PhishingService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private final PhishingService phishingService;
-    private final CodeSafetyService codeSafetyService;
     private final LogRepository logRepository;
     private final UserRepository userRepository;
 
-    public AdminController(PhishingService phishingService,
-                           CodeSafetyService codeSafetyService,
-                           LogRepository logRepository,
-                           UserRepository userRepository) {
-        this.phishingService = phishingService;
-        this.codeSafetyService = codeSafetyService;
+    public AdminController(LogRepository logRepository, UserRepository userRepository) {
         this.logRepository = logRepository;
         this.userRepository = userRepository;
-    }
-
-    @PostMapping("/phishing")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Map<String, Boolean>> checkPhishing(@RequestBody Map<String, String> request) {
-        String url = request.get("url");
-        boolean isPhishing = phishingService.checkPhishing(url);
-        logRepository.save(new Log());
-        return ResponseEntity.ok(Map.of("isPhishing", isPhishing));
-    }
-
-    @PostMapping("/code-safety")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Map<String, Object>> checkCodeSafety(@RequestBody Map<String, String> request) {
-        String code = request.get("code");
-        boolean isSafe = codeSafetyService.checkCodeSafety(code);
-        int positives = codeSafetyService.getPositives(code); // Assuming this method exists
-        logRepository.save(new Log());
-        return ResponseEntity.ok(Map.of("isSafe", isSafe, "positives", positives));
     }
 
     @GetMapping("/logs")
@@ -112,7 +83,6 @@ public class AdminController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         if (userRepository.existsById(id)) {
-            User user = userRepository.findById(id).get();
             logRepository.save(new Log());
             userRepository.deleteById(id);
             return ResponseEntity.noContent().build();
