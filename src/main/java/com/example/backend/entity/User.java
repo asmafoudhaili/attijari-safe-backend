@@ -18,14 +18,21 @@ public class User {
 
     private String mobileNumber;
 
+    @Enumerated(EnumType.STRING)
+    private Gender gender;
+
+    private String avatar; // Add avatar field
+
     // Constructors
     public User() {}
 
-    public User(String username, String password, Role role, String mobileNumber) {
+    public User(String username, String password, Role role, String mobileNumber, Gender gender, String avatar) {
         this.username = username;
         this.password = password;
         this.role = role;
         this.mobileNumber = mobileNumber;
+        this.gender = gender;
+        this.avatar = avatar;
     }
 
     // Getters and Setters
@@ -43,4 +50,10 @@ public class User {
 
     public String getMobileNumber() { return mobileNumber; }
     public void setMobileNumber(String mobileNumber) { this.mobileNumber = mobileNumber; }
+
+    public Gender getGender() { return gender; }
+    public void setGender(Gender gender) { this.gender = gender; }
+
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
 }
