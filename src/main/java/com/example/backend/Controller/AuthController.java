@@ -42,8 +42,7 @@ public class AuthController {
             User user = new User();
             user.setUsername(request.getUsername());
             user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setRole(Role.valueOf("ADMIN"));
-
+            user.setRole(Role.valueOf("ADMIN")); // Default to ADMIN for now; adjust based on UI
             userRepository.save(user);
             return ResponseEntity.ok("User created successfully");
         } catch (Exception e) {
@@ -61,6 +60,32 @@ public class AuthController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         String jwt = jwtUtil.generateToken(request.getUsername(), Collections.singletonList("ROLE_" + user.getRole()));
         return ResponseEntity.ok(new AuthResponse(jwt));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String authorizationHeader) {
+        try {
+            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                String token = authorizationHeader.substring(7);
+                String username = jwtUtil.extractUsername(token);
+                if (username != null && jwtUtil.validateToken(token, username)) {
+                    User user = userRepository.findByUsername(username)
+                            .orElseThrow(() -> new RuntimeException("User not found"));
+                    String newJwt = jwtUtil.generateToken(username, Collections.singletonList("ROLE_" + user.getRole()));
+                    return ResponseEntity.ok(new AuthResponse(newJwt));
+                }
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired token");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error refreshing token: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        // In a stateless JWT setup, logout is handled client-side by removing the token
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok("Logged out successfully");
     }
 
     @GetMapping("/test-password")

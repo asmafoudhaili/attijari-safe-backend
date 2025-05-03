@@ -23,6 +23,7 @@ public class CodeSafetyService {
 
     private final LogRepository logRepository;
     private final Map<String, Boolean> codeCache = new HashMap<>();
+    private final Map<String, Integer> positivesCache = new HashMap<>();
 
     public CodeSafetyService(LogRepository logRepository) {
         this.logRepository = logRepository;
@@ -63,7 +64,6 @@ public class CodeSafetyService {
             });
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            // Use ParameterizedTypeReference to specify the exact type
             ResponseEntity<Map<String, Object>> uploadResponse = restTemplate.exchange(
                     "https://www.virustotal.com/api/v3/files",
                     HttpMethod.POST,
@@ -72,7 +72,6 @@ public class CodeSafetyService {
             );
 
             String analysisUrl;
-            // Safely navigate the response structure
             Map<String, Object> uploadBody = uploadResponse.getBody();
             if (uploadBody == null || !uploadBody.containsKey("data")) {
                 throw new RuntimeException("Invalid VirusTotal upload response: 'data' field missing");
@@ -106,7 +105,6 @@ public class CodeSafetyService {
             int pollInterval = 3000;
 
             while (attempts < maxAttempts) {
-                // Use ParameterizedTypeReference to specify the exact type
                 ResponseEntity<Map<String, Object>> analysisResponse = restTemplate.exchange(
                         analysisUrl,
                         HttpMethod.GET,
@@ -156,9 +154,10 @@ public class CodeSafetyService {
                         throw new RuntimeException("Invalid VirusTotal analysis response: 'malicious' field missing");
                     }
 
-                    int maliciousCount = (int) statsMap.get("malicious");
+                    int maliciousCount = ((Number) statsMap.get("malicious")).intValue();
                     boolean isSafe = maliciousCount == 0;
                     codeCache.put(codeHash, isSafe);
+                    positivesCache.put(codeHash, maliciousCount);
 
                     // Log the scan
                     Log log = new Log();
@@ -173,16 +172,33 @@ public class CodeSafetyService {
                     Thread.sleep(pollInterval);
                     attempts++;
                 } else {
+                    codeCache.put(codeHash, false);
+                    positivesCache.put(codeHash, 0);
                     return false;
                 }
             }
 
             codeCache.put(codeHash, false);
+            positivesCache.put(codeHash, 0);
             return false;
         } catch (Exception e) {
             System.err.println("VirusTotal API error: " + e.getMessage());
             codeCache.put(codeHash, false);
+            positivesCache.put(codeHash, 0);
             return false;
         }
+    }
+
+    public int getPositives(String code) {
+        String codeHash = simpleHash(code);
+
+        // Check cache first
+        if (positivesCache.containsKey(codeHash)) {
+            return positivesCache.get(codeHash);
+        }
+
+        // If not in cache, perform analysis and store result
+        checkCodeSafety(code); // This will populate the cache
+        return positivesCache.getOrDefault(codeHash, 0);
     }
 }

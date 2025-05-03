@@ -18,7 +18,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 @Configuration
@@ -35,15 +34,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/login", "/api/register", "/api/test-password", "/api/test-auth","api/public/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api/login", "/api/register", "/api/test-password", "/api/refresh", "/api/logout").permitAll()
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")  // This part remains unchanged
+                        .anyRequest().authenticated() // Allow all other requests for authenticated users
                 )
                 .exceptionHandling(exception -> exception
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            System.out.println("Access denied for request: " + request.getRequestURI());
-                            System.out.println("User authorities: " + SecurityContextHolder.getContext().getAuthentication().getAuthorities());
-                            System.out.println("Exception: " + accessDeniedException.getMessage());
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
                             response.getWriter().write("{\"error\": \"Forbidden\", \"message\": \"Access denied\"}");
@@ -67,10 +63,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:3039"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:3000",
+                "http://localhost:3039",
+                "chrome-extension://gehmpilcepbdcdooneebjemkgnhacaep"
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Cache preflight requests for 1 hour
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

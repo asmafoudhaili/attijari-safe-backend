@@ -7,6 +7,7 @@ import com.example.backend.repository.UserRepository;
 import com.example.backend.service.CodeSafetyService;
 import com.example.backend.service.PhishingService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,47 +34,57 @@ public class AdminController {
     }
 
     @PostMapping("/phishing")
-    public Map<String, Boolean> checkPhishing(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Map<String, Boolean>> checkPhishing(@RequestBody Map<String, String> request) {
         String url = request.get("url");
         boolean isPhishing = phishingService.checkPhishing(url);
-        return Map.of("isPhishing", isPhishing);
+        logRepository.save(new Log());
+        return ResponseEntity.ok(Map.of("isPhishing", isPhishing));
     }
 
     @PostMapping("/code-safety")
-    public Map<String, Boolean> checkCodeSafety(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Map<String, Object>> checkCodeSafety(@RequestBody Map<String, String> request) {
         String code = request.get("code");
         boolean isSafe = codeSafetyService.checkCodeSafety(code);
-        return Map.of("isSafe", isSafe);
+        int positives = codeSafetyService.getPositives(code); // Assuming this method exists
+        logRepository.save(new Log());
+        return ResponseEntity.ok(Map.of("isSafe", isSafe, "positives", positives));
     }
 
     @GetMapping("/logs")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public List<Log> getLogs() {
         return logRepository.findAll();
     }
 
     @GetMapping("/logs/phishing")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public List<Log> getPhishingLogs() {
         return logRepository.findByType("Phishing");
     }
 
     @GetMapping("/logs/codesafety")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public List<Log> getCodeSafetyLogs() {
         return logRepository.findByType("CodeSafety");
     }
 
-    // 🚀 CRUD for Users
-
     @PostMapping("/users")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public User createUser(@RequestBody User user) {
+        logRepository.save(new Log());
         return userRepository.save(user);
     }
 
     @GetMapping("/users")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
     @GetMapping("/users/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<User> getUserById(@PathVariable Long id) {
         return userRepository.findById(id)
                 .map(ResponseEntity::ok)
@@ -81,6 +92,7 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
         Optional<User> optionalUser = userRepository.findById(id);
         if (optionalUser.isPresent()) {
@@ -89,6 +101,7 @@ public class AdminController {
             user.setPassword(updatedUser.getPassword());
             user.setRole(updatedUser.getRole());
             user.setMobileNumber(updatedUser.getMobileNumber());
+            logRepository.save(new Log());
             return ResponseEntity.ok(userRepository.save(user));
         } else {
             return ResponseEntity.notFound().build();
@@ -96,8 +109,11 @@ public class AdminController {
     }
 
     @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         if (userRepository.existsById(id)) {
+            User user = userRepository.findById(id).get();
+            logRepository.save(new Log());
             userRepository.deleteById(id);
             return ResponseEntity.noContent().build();
         } else {
