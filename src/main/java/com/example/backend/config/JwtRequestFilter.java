@@ -26,8 +26,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        final String authorizationHeader = request.getHeader("Authorization");
 
+        String path = request.getRequestURI();
+
+        if (path.startsWith("/api/login") || path.startsWith("/api/register") || path.startsWith("/api/refresh") || path.startsWith("/api/logout")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        final String authorizationHeader = request.getHeader("Authorization");
         System.out.println("Request URL: " + request.getRequestURI());
         System.out.println("Authorization Header: " + authorizationHeader);
 
@@ -39,10 +46,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 System.out.println("Extracted username: " + username);
                 System.out.println("Extracted roles: " + roles);
 
-                if (username != null && roles != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     if (jwtUtil.validateToken(jwt, username)) {
+                        // Add ROLE_ prefix to match Spring Security's expectation
                         List<SimpleGrantedAuthority> authorities = roles.stream()
-                                .map(role -> new SimpleGrantedAuthority(role.toUpperCase()))
+                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                                 .collect(Collectors.toList());
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                 username, null, authorities);
@@ -58,8 +66,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
         } else {
             System.out.println("No Bearer token found in Authorization header");
-            System.out.println("No username/roles extracted or authentication already set");
-            System.out.println("Current authentication: " + SecurityContextHolder.getContext().getAuthentication());
         }
         chain.doFilter(request, response);
     }

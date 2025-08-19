@@ -1,4 +1,4 @@
-package com.example.backend.Controller;
+package com.example.backend.controller;
 
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,68 +33,72 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    // Register first admin only
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
-        try {
-            if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
-            }
-
-            User user = new User();
-            user.setUsername(request.getUsername());
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setRole(Role.valueOf("ADMIN")); // Default to ADMIN for now; adjust based on UI
-            userRepository.save(user);
-            return ResponseEntity.ok("User created successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating user: " + e.getMessage());
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
+
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.ADMIN); // Always admin
+        userRepository.save(user);
+
+        return ResponseEntity.ok("Admin created successfully");
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
-        );
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        String jwt = jwtUtil.generateToken(request.getUsername(), Collections.singletonList("ROLE_" + user.getRole()));
-        return ResponseEntity.ok(new AuthResponse(jwt));
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            User user = userRepository.findByUsername(request.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String jwt = jwtUtil.generateToken(request.getUsername(),
+                    Collections.singletonList(user.getRole().name())); // Plain role (e.g., ADMIN)
+
+            return ResponseEntity.ok(new AuthResponse(jwt));
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid username or password");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Login failed: " + e.getMessage());
+        }
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String authorizationHeader) {
-        try {
-            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-                String token = authorizationHeader.substring(7);
+    public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
                 String username = jwtUtil.extractUsername(token);
-                if (username != null && jwtUtil.validateToken(token, username)) {
+                if (jwtUtil.validateToken(token, username)) {
                     User user = userRepository.findByUsername(username)
                             .orElseThrow(() -> new RuntimeException("User not found"));
-                    String newJwt = jwtUtil.generateToken(username, Collections.singletonList("ROLE_" + user.getRole()));
+                    String newJwt = jwtUtil.generateToken(username,
+                            Collections.singletonList(user.getRole().name()));
                     return ResponseEntity.ok(new AuthResponse(newJwt));
                 }
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body("Invalid or expired token");
             }
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired token");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error refreshing token: " + e.getMessage());
         }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body("No valid Bearer token provided");
     }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout() {
-        // In a stateless JWT setup, logout is handled client-side by removing the token
-        SecurityContextHolder.clearContext();
+        SecurityContextHolder.clearContext(); // Clear context for stateless JWT
         return ResponseEntity.ok("Logged out successfully");
-    }
-
-    @GetMapping("/test-password")
-    public String testPassword() {
-        User user = userRepository.findByUsername("admin1234")
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        boolean matches = passwordEncoder.matches("admin1234", user.getPassword());
-        return "Password matches: " + matches;
     }
 }
 
@@ -119,16 +124,7 @@ class LoginRequest {
 
 class AuthResponse {
     private String jwt;
-
-    public AuthResponse(String jwt) {
-        this.jwt = jwt;
-    }
-
-    public String getJwt() {
-        return jwt;
-    }
-
-    public void setJwt(String jwt) {
-        this.jwt = jwt;
-    }
+    public AuthResponse(String jwt) { this.jwt = jwt; }
+    public String getJwt() { return jwt; }
+    public void setJwt(String jwt) { this.jwt = jwt; }
 }

@@ -34,9 +34,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/login", "/api/register", "/api/test-password", "/api/refresh", "/api/logout").permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        .requestMatchers("/api/client/**").hasAuthority("ROLE_CLIENT")  // ✅ Add this
-
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN") // Matches plain 'ADMIN'
+                        .requestMatchers("/api/client/**").hasRole("CLIENT")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
@@ -67,7 +66,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:3039",
-                "chrome-extension://gehmpilcepbdcdooneebjemkgnhacaep"
+                "chrome-extension://*",
+                "null"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));

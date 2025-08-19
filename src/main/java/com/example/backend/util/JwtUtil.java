@@ -1,25 +1,33 @@
 package com.example.backend.util;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Date;
 import java.util.List;
 
 @Component
 public class JwtUtil {
 
-    private final String SECRET_KEY = "XFC9UE8qxlJGqrQejS0UfoGdA8gB0Xua"; // Must be at least 32 bytes for HS512
+    @Value("${jwt.secret.key:XFC9UE8qxlJGqrQejS0UfoGdA8gB0Xua}") // Fallback to a secure default if not set
+    private String secretKey;
+
     private final long EXPIRATION_TIME = 86400000; // 24 hours in milliseconds
 
-    private final Key signingKey;
+    private SecretKey signingKey;
 
-    public JwtUtil() {
-        this.signingKey = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
+    @PostConstruct
+    public void init() {
+        if (secretKey == null || secretKey.isEmpty()) {
+            throw new IllegalStateException("JWT secret key is not configured or is empty");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(String username, List<String> roles) {
@@ -33,22 +41,46 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token) {
-        return Jwts.parser()
-                .verifyWith((SecretKey) signingKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+        try {
+            return Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getSubject();
+        } catch (Exception e) {
+            System.out.println("Error extracting username from token: " + e.getMessage());
+            throw e; // Re-throw to be handled by the caller
+        }
     }
 
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
-        return (List<String>) Jwts.parser()
-                .verifyWith((SecretKey) signingKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .get("roles");
+        try {
+            return (List<String>) Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get("roles");
+        } catch (Exception e) {
+            System.out.println("Error extracting roles from token: " + e.getMessage());
+            throw e; // Re-throw to be handled by the caller
+        }
+    }
+
+    public Date extractIssuedAt(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getIssuedAt();
+        } catch (Exception e) {
+            System.out.println("Error extracting issuedAt from token: " + e.getMessage());
+            throw e;
+        }
     }
 
     public boolean validateToken(String token, String username) {
@@ -64,12 +96,17 @@ public class JwtUtil {
     }
 
     private boolean isTokenExpired(String token) {
-        Date expiration = Jwts.parser()
-                .verifyWith((SecretKey) signingKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getExpiration();
-        return expiration.before(new Date());
+        try {
+            Date expiration = Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getExpiration();
+            return expiration.before(new Date());
+        } catch (Exception e) {
+            System.out.println("Error checking token expiration: " + e.getMessage());
+            return true; // Treat as expired on error for security
+        }
     }
 }
