@@ -13,7 +13,6 @@ public class SafeItem {
     private boolean isSafe;
     private boolean adminConfirmed;
 
-    // Constructors
     public SafeItem() {}
 
     public SafeItem(String itemHash, String threatType, boolean isSafe, boolean adminConfirmed) {
@@ -23,7 +22,6 @@ public class SafeItem {
         this.adminConfirmed = adminConfirmed;
     }
 
-    // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getItemHash() { return itemHash; }

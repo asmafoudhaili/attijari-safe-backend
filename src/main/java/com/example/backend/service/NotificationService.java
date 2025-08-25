@@ -1,36 +1,43 @@
 package com.example.backend.service;
 
 import com.example.backend.entity.Notification;
-import com.example.backend.entity.SafeItem;
 import com.example.backend.repository.NotificationRepository;
-import com.example.backend.repository.SafeItemRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class NotificationService {
+    @Autowired
+    private NotificationRepository notificationRepository;
 
-    private final NotificationRepository notificationRepository;
-    private final SafeItemRepository safeItemRepository;
+    private final Sinks.Many<Notification> notificationSink = Sinks.many().multicast().onBackpressureBuffer();
 
-    public NotificationService(NotificationRepository notificationRepository, SafeItemRepository safeItemRepository) {
-        this.notificationRepository = notificationRepository;
-        this.safeItemRepository = safeItemRepository;
+    public boolean saveNotification(Notification notification) {
+        Optional<Notification> existing = notificationRepository.findByDetailsHashAndThreatType(notification.getDetailsHash(), notification.getThreatType());
+        if (existing.isPresent()) {
+            return false; // Duplicate notification
+        }
+        notificationRepository.save(notification);
+        return true;
     }
 
-    public void saveNotification(Notification notification) {
-        notificationRepository.save(notification);
+    public void broadcast(Notification notification) {
+        notificationSink.tryEmitNext(notification);
+    }
+
+    public Flux<Notification> getNotificationStream() {
+        return notificationSink.asFlux();
     }
 
     public List<Notification> getUnsafeNotifications() {
-        return notificationRepository.findByIsSafeFalse();
+        return notificationRepository.findByIsSafeFalseAndAdminConfirmedFalse();
     }
 
-    public boolean isItemSafe(String itemHash, String threatType) {
-        return safeItemRepository.findByItemHashAndThreatType(itemHash, threatType)
-                .map(SafeItem::isAdminConfirmed)
-                .orElse(false);
+    public List<Notification> getAllNotifications() {
+        return notificationRepository.findAll();
     }
 }

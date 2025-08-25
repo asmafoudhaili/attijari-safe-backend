@@ -33,7 +33,6 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // Register first admin only
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -43,7 +42,7 @@ public class AuthController {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.ADMIN); // Always admin
+        user.setRole(Role.ADMIN);
         userRepository.save(user);
 
         return ResponseEntity.ok("Admin created successfully");
@@ -61,7 +60,7 @@ public class AuthController {
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             String jwt = jwtUtil.generateToken(request.getUsername(),
-                    Collections.singletonList(user.getRole().name())); // Plain role (e.g., ADMIN)
+                    Collections.singletonList("ROLE_" + user.getRole().name())); // Add ROLE_ prefix
 
             return ResponseEntity.ok(new AuthResponse(jwt));
         } catch (BadCredentialsException e) {
@@ -83,7 +82,7 @@ public class AuthController {
                     User user = userRepository.findByUsername(username)
                             .orElseThrow(() -> new RuntimeException("User not found"));
                     String newJwt = jwtUtil.generateToken(username,
-                            Collections.singletonList(user.getRole().name()));
+                            Collections.singletonList("ROLE_" + user.getRole().name()));
                     return ResponseEntity.ok(new AuthResponse(newJwt));
                 }
             } catch (Exception e) {
@@ -97,7 +96,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout() {
-        SecurityContextHolder.clearContext(); // Clear context for stateless JWT
+        SecurityContextHolder.clearContext();
         return ResponseEntity.ok("Logged out successfully");
     }
 }

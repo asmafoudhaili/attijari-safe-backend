@@ -15,7 +15,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -48,10 +47,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     if (jwtUtil.validateToken(jwt, username)) {
-                        // Add ROLE_ prefix to match Spring Security's expectation
                         List<SimpleGrantedAuthority> authorities = roles.stream()
-                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                                .collect(Collectors.toList());
+                                .map(SimpleGrantedAuthority::new)
+                                .toList();
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                 username, null, authorities);
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
