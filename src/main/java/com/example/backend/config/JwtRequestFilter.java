@@ -27,43 +27,34 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
-
-        if (path.startsWith("/api/login") || path.startsWith("/api/register") || path.startsWith("/api/refresh") || path.startsWith("/api/logout")) {
+        if (path.startsWith("/api/login") || path.startsWith("/api/register") ||
+                path.startsWith("/api/refresh") || path.startsWith("/api/logout")) {
             chain.doFilter(request, response);
             return;
         }
 
         final String authorizationHeader = request.getHeader("Authorization");
-        System.out.println("Request URL: " + request.getRequestURI());
-        System.out.println("Authorization Header: " + authorizationHeader);
 
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             String jwt = authorizationHeader.substring(7);
             try {
                 String username = jwtUtil.extractUsername(jwt);
                 List<String> roles = jwtUtil.extractRoles(jwt);
-                System.out.println("Extracted username: " + username);
-                System.out.println("Extracted roles: " + roles);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     if (jwtUtil.validateToken(jwt, username)) {
                         List<SimpleGrantedAuthority> authorities = roles.stream()
-                                .map(SimpleGrantedAuthority::new)
+                                .map(SimpleGrantedAuthority::new) // Use roles as-is (ROLE_CLIENT, ROLE_ADMIN)
                                 .toList();
-                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                 username, null, authorities);
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        System.out.println("Set authentication for user: " + username + " with authorities: " + authorities);
-                    } else {
-                        System.out.println("JWT token validation failed for user: " + username);
+                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(auth);
                     }
                 }
             } catch (Exception e) {
-                System.out.println("Error processing JWT: " + e.getMessage());
+                System.out.println("Error parsing JWT: " + e.getMessage());
             }
-        } else {
-            System.out.println("No Bearer token found in Authorization header");
         }
         chain.doFilter(request, response);
     }

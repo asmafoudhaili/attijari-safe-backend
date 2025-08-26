@@ -1,4 +1,4 @@
-package com.example.backend.controller;
+package com.example.backend.Controller;
 
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
@@ -60,7 +60,7 @@ public class AuthController {
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             String jwt = jwtUtil.generateToken(request.getUsername(),
-                    Collections.singletonList("ROLE_" + user.getRole().name())); // Add ROLE_ prefix
+                    Collections.singletonList("ROLE_" + user.getRole().name()));
 
             return ResponseEntity.ok(new AuthResponse(jwt));
         } catch (BadCredentialsException e) {
@@ -78,7 +78,7 @@ public class AuthController {
             String token = authHeader.substring(7);
             try {
                 String username = jwtUtil.extractUsername(token);
-                if (jwtUtil.validateToken(token, username)) {
+                if (jwtUtil.validateToken(token, username)) { // ✅ Now works with overloaded method
                     User user = userRepository.findByUsername(username)
                             .orElseThrow(() -> new RuntimeException("User not found"));
                     String newJwt = jwtUtil.generateToken(username,

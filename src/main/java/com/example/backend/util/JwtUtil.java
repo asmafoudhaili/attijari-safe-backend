@@ -1,8 +1,10 @@
 package com.example.backend.util;
 
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,27 +16,41 @@ import java.util.List;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret.key:084067a3d5f7cd51fd403224e262dfd83d52693505bb3f5aa578df2a90653693ae784a6b4ed7c1f74d2a7db9907a17792c1903acc4c334f4399e6b1a34f4f7043f13981dd5fbfd95e5e4946ae50b5639542c236dfc7f535047831f645515c22b52d8c3496ddd2b323e1110113dc42dbb5adb11e8f0f397127e736d3cf4b666c7415feef152338973ed7442282fa0a6d0380f233db271a7c523adf8ba94b66ff97567f26b9907c317db32f2b290b40b704fd7fb89ea5d9d992dbcb40bdfd3e352c1db716d655b5b5ce36c7bdefa29dfdff00c831ce83359dab68ad180b49ed6d1711bfa2102bed4b7f51740a8bf0fff51ca6aa4267011b4c65bdc3027034d30f0}")
+    private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
+
+    @Value("${jwt.secret.key}")
     private String secretKey;
 
-    private final long EXPIRATION_TIME = 86400000;
+    @Value("${jwt.expiration.time:86400000}")
+    private long expirationTime;
 
     private SecretKey signingKey;
 
     @PostConstruct
     public void init() {
-        if (secretKey == null || secretKey.isEmpty()) {
-            throw new IllegalStateException("JWT secret key is not configured or is empty");
+        if (secretKey == null || secretKey.length() < 32) {
+            logger.error("JWT secret key is missing or too short (minimum 32 characters)");
+            throw new IllegalStateException("JWT secret key is not configured or is too weak");
         }
         this.signingKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        logger.info("JWT signing key initialized successfully");
     }
 
     public String generateToken(String username, List<String> roles) {
+        if (username == null || username.isEmpty()) {
+            logger.error("Username cannot be null or empty");
+            throw new IllegalArgumentException("Username cannot be null or empty");
+        }
+        if (roles == null) {
+            logger.error("Roles cannot be null");
+            throw new IllegalArgumentException("Roles cannot be null");
+        }
+
         return Jwts.builder()
-                .subject(username)
-                .claim("roles", roles) // Roles already include ROLE_ prefix from AuthController
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setSubject(username)
+                .claim("roles", roles)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(signingKey)
                 .compact();
     }
@@ -47,9 +63,9 @@ public class JwtUtil {
                     .parseSignedClaims(token)
                     .getPayload()
                     .getSubject();
-        } catch (Exception e) {
-            System.out.println("Error extracting username from token: " + e.getMessage());
-            throw e;
+        } catch (JwtException e) {
+            logger.error("Failed to extract username from token: {}", e.getMessage());
+            throw new IllegalArgumentException("Invalid JWT token", e);
         }
     }
 
@@ -62,9 +78,9 @@ public class JwtUtil {
                     .parseSignedClaims(token)
                     .getPayload()
                     .get("roles");
-        } catch (Exception e) {
-            System.out.println("Error extracting roles from token: " + e.getMessage());
-            throw e;
+        } catch (JwtException e) {
+            logger.error("Failed to extract roles from token: {}", e.getMessage());
+            throw new IllegalArgumentException("Invalid JWT token", e);
         }
     }
 
@@ -76,20 +92,34 @@ public class JwtUtil {
                     .parseSignedClaims(token)
                     .getPayload()
                     .getIssuedAt();
-        } catch (Exception e) {
-            System.out.println("Error extracting issuedAt from token: " + e.getMessage());
-            throw e;
+        } catch (JwtException e) {
+            logger.error("Failed to extract issued-at from token: {}", e.getMessage());
+            throw new IllegalArgumentException("Invalid JWT token", e);
+        }
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token);
+            return !isTokenExpired(token);
+        } catch (ExpiredJwtException e) {
+            logger.warn("Token expired: {}", e.getMessage());
+            return false;
+        } catch (JwtException e) {
+            logger.error("Invalid token: {}", e.getMessage());
+            return false;
         }
     }
 
     public boolean validateToken(String token, String username) {
         try {
-            String tokenUsername = extractUsername(token);
-            boolean isExpired = isTokenExpired(token);
-            System.out.println("Validating token - Username match: " + tokenUsername.equals(username) + ", Expired: " + isExpired);
-            return tokenUsername.equals(username) && !isExpired;
-        } catch (Exception e) {
-            System.out.println("Token validation failed: " + e.getMessage());
+            String extractedUsername = extractUsername(token);
+            return extractedUsername.equals(username) && !isTokenExpired(token);
+        } catch (JwtException e) {
+            logger.error("Token validation failed for username {}: {}", username, e.getMessage());
             return false;
         }
     }
@@ -103,9 +133,9 @@ public class JwtUtil {
                     .getPayload()
                     .getExpiration();
             return expiration.before(new Date());
-        } catch (Exception e) {
-            System.out.println("Error checking token expiration: " + e.getMessage());
-            return true;
+        } catch (JwtException e) {
+            logger.error("Failed to check token expiration: {}", e.getMessage());
+            return true; // Treat invalid tokens as expired
         }
     }
 }
