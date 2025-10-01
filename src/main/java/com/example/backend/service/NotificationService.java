@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class NotificationService {
@@ -17,8 +16,8 @@ public class NotificationService {
     private final Sinks.Many<Notification> notificationSink = Sinks.many().multicast().onBackpressureBuffer();
 
     public boolean saveNotification(Notification notification) {
-        Optional<Notification> existing = notificationRepository.findByDetailsHashAndThreatType(notification.getDetailsHash(), notification.getThreatType());
-        if (existing.isPresent()) {
+        List<Notification> existing = notificationRepository.findByDetailsHashAndThreatType(notification.getDetailsHash(), notification.getThreatType());
+        if (!existing.isEmpty()) {
             return false; // Duplicate notification
         }
         notificationRepository.save(notification);

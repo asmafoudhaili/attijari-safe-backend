@@ -67,7 +67,7 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "http://localhost:3039",
                 "http://localhost:8000",
-                "chrome-extension://ccpikfbbcepjokhpedjhejogjpaapjmk",
+                "chrome-extension://jgecoejcphnopdajailljcgabekamjfk",
                 "chrome-extension://*"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

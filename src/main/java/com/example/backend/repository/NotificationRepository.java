@@ -6,6 +6,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    Optional<Notification> findByDetailsHashAndThreatType(String detailsHash, String threatType);
     List<Notification> findByIsSafeFalseAndAdminConfirmedFalse();
+    List<Notification> findByDetailsHashAndThreatType(String detailsHash, String threatType);
 }
